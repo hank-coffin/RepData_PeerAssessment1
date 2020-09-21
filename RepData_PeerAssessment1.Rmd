@@ -1,0 +1,118 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Hank C"
+date: "9/20/2020"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr,     warn.conflicts = FALSE)
+library(lubridate, warn.conflicts = FALSE)
+library(zoo,       warn.conflicts = FALSE)
+
+#read in data
+activity <- read.table(file="activity/activity.csv", header=TRUE, sep=",")
+
+# create factor for time intervals
+activity$intervalFactor <- factor(activity$interval)
+
+#create factor for date
+activity$dateFactor <- factor(activity$date)
+
+stepsByDate <- aggregate(activity$steps, by=list(Date=activity$dateFactor), FUN=sum, na.rm=TRUE)
+names(stepsByDate) <- c("Date", "Steps")
+
+stepsByInterval <- aggregate(activity$steps, by=list(Interval=activity$intervalFactor), FUN=sum, na.rm=TRUE)
+names(stepsByInterval)<- c("Interval", "Steps")
+```
+
+### **Histogram of the total number of steps taken each day**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+dates           <- ymd(stepsByDate$Date)
+dateRangeString <- paste( min(dates), " to ", max(dates), sep=" ")
+
+plot(stepsByDate$Steps, type="s", main="Steps Per Day", xlab=dateRangeString, ylab="Steps", ylim = c(min(stepsByDate$Steps), max(stepsByDate$Steps)), xlim = c(1,length(stepsByDate$Steps) + 1))
+```
+<br><br>   
+
+### **Time series plot of the average number of steps taken**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+weeklyMovingAverage <- transform(stepsByDate, roll = rollapplyr(Steps, 7, mean, partial = TRUE))
+plot(weeklyMovingAverage$roll, type="l",  main = "7 Day Moving Average", xlab=dateRangeString, ylab="Steps")
+```
+
+### **Average Daily Activity**
+#### There is more activity on weekends.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+daysOfWeek        <- wday(dates, label=TRUE)
+stepsByDow        <- aggregate(stepsByDate$Steps, by=list(DoW=daysOfWeek), FUN=sum, na.rm=TRUE)
+names(stepsByDow) <- c("DoW", "Steps")
+totalDaysOfWeek   <- table(daysOfWeek)
+avgStepsPerDoW    <- stepsByDow$Steps / totalDaysOfWeek
+
+barplot(avgStepsPerDoW, type="s", ylim=c(0,1.25*max(avgStepsPerDoW)), ylab="Steps", main="Average Daily Activity", border="dark green", col="green")
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+avgStepsPerDowSorted <- sort(avgStepsPerDoW, decreasing = TRUE)
+barplot(avgStepsPerDowSorted, type="s", ylim=c(0,1.25*max(avgStepsPerDowSorted)), ylab="Steps", main="Average Daily Activity High to Low", border="dark green", col="green")
+```
+
+### **Mean and median number of steps taken each day**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+stepsByDate_mean   <- mean(stepsByDate$Steps)
+stepsByDate_median <- median(stepsByDate$Steps)
+```
+#### Number of steps taken per day (mean)  : `r format(round(stepsByDate_mean, 1), nsmall = 1)`
+#### Number of steps taken per day (median): `r stepsByDate_median`
+<br>
+     
+
+### **Most Active 5 Minute Interval**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+totalIntervals        <- table(activity$interval)
+avgStepsPerInterval   <- stepsByInterval$Steps / totalIntervals
+intervalMax           <- max(avgStepsPerInterval)
+intervalMaxIndex      <- avgStepsPerInterval[which.max(avgStepsPerInterval)]
+intervalMaxName       <- names(intervalMaxIndex)
+```
+####  
+#### Average steps of the most active interval: `r format(round(intervalMax, 1), nsmall = 1)`
+#### Most active interval: `r intervalMaxName`
+
+
+### **Code to describe and show a strategy for imputing missing data**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+# see if there are any missing dates
+dates         <- as.Date(levels(activity$dateFactor))
+dates_range   <- seq(min(dates), max(dates), by=1)
+missing_dates <- dates_range[!dates_range %in% dates]
+
+activitySummary <- summary(activity$steps)
+```
+#### Number of missing dates : `r length(missing_dates)`
+#### Number of NA step values: `r activitySummary["NA's"]`
+<br>   
+
+#### The data contains no missing dates.
+#### Imputation will be restricted to replacing NA values with 0.
+<br><br>     
+
+### **Histogram of the total number of steps taken each day after missing values are imputed**
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+#replace NA steps with 0
+activity$steps[is.na(activity$steps)] <- 0
+
+stepsByDate <- aggregate(activity$steps, by=list(Date=activity$dateFactor), FUN=sum, na.rm=TRUE)
+names(stepsByDate) <- c("Date", "Steps")
+
+plot(stepsByDate$Steps, type="s", main="Steps Per Day (Imputed)", xlab=dateRangeString, ylab="Steps", ylim = c(min(stepsByDate$Steps), max(stepsByDate$Steps)), xlim = c(1,length(stepsByDate$Steps) + 1))
+
+```
+
+
